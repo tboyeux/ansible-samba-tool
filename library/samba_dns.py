@@ -1,7 +1,5 @@
 #!/usr/bin/python
 
-# DON'T FORGET TO CHANGE BACK TO PYTHON WITHOUT 2
-
 ANSIBLE_METADATA = {'status': ['preview'],
                     'supported_by': 'community',
                     'version': '0.1.0'}
