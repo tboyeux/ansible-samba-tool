@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python
 
 # DON'T FORGET TO CHANGE BACK TO PYTHON WITHOUT 2
 
