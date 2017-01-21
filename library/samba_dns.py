@@ -1,7 +1,94 @@
 #!/usr/bin/python2
 
-# DON'T FORGET TO CHANGE BACK TO PYTHON WITHOUT 2$
+# DON'T FORGET TO CHANGE BACK TO PYTHON WITHOUT 2
 
+ANSIBLE_METADATA = {'status': ['preview'],
+                    'supported_by': 'community',
+                    'version': '0.1.0'}
+
+
+DOCUMENTATION = '''
+module: samba_dns
+short_description: Manage Samba 4 DNS zones and records
+description: 
+  - Manage Samba 4 DNS zones and records
+version_added: "2.2"
+author: "tbw, @tbwtbw"
+requirements:
+  - Requires samba-tool to be installed on host
+  - Requires a Samba 4 DNS server to manage
+options:
+  function:
+    description: 
+      - Specifies wether you want the module to alter DNS records or zones
+    required: true
+    choices: [record, zone]
+    version_added: 0.1.0
+  state:
+    description: 
+      - Specifies wether you want the DNS record/zone to be present or absent. This describes the final state of the system.
+    required: false
+    default: present
+    choices: [present, absent]
+    version_added: 0.1.0
+  dnsServer:
+    description: 
+      - Specifies the FQDN of the DNS server to contact.
+    required: true
+    version_added: 0.1.0
+  dnsZone:
+    description: 
+      - Specifies the FQDN of the DNS zone.
+    required: true
+    version_added: 0.1.0    
+  rName:
+    description: 
+      - Specifies the FQDN of the DNS record.
+    required: false
+    default: null
+    version_added: 0.1.0    
+  rType:
+    description: 
+      - Specifies the type of the record.
+    required: false
+    default: A
+    choices: [A, AAAA, PTR, CNAME, MX, SRV, TXT]
+    version_added: 0.1.0   
+  rData:
+    description: 
+      - Specifies the content of the record (usually an IP address).
+    required: false
+    default: null
+    version_added: 0.1.0
+  username:
+    description: 
+      - Specifies the NT username used to connect to the DNS server.
+    required: false
+    default: null
+    version_added: 0.1.0
+  password:
+    description: 
+      - Specifies the password of the NT username used to connect to the DNS server
+    required: false
+    default: null
+    version_added: 0.1.0
+'''
+
+RETURN = '''
+connection:
+  description: Result from the testing the connection to the DNS server and the credentials. Check-mode only.
+  returned: success
+  type: string
+  sample: "OK"
+stdout:
+  description: Output sent by the DNS server.
+  returned: always
+  type: string
+  sample: "Zone child.parent.test delete successfully\n"
+'''
+
+EXAMPLES = '''
+'''
 
 from ansible.module_utils.basic import AnsibleModule
 try:
@@ -10,7 +97,7 @@ except ImportError:
     HAS_SAMBA = False
 else:
     HAS_SAMBA = True
-
+    
 class dnsCommand():
     def __init__(self, module):
         self.module = module
@@ -137,8 +224,8 @@ def main():
             state=dict(default='present', choices=['present', 'absent'], type='str'),
             function=dict(required=True, choices=['record', 'zone'], type='str'),
             # following options are specific to dns function
-            dnsServer=dict(required=True, default=None, type='str'),
-            dnsZone=dict(required=True, default=None, type='str'),
+            dnsServer=dict(required=True, type='str'),
+            dnsZone=dict(required=True, type='str'),
             rName=dict(default=None, type='str'),
             rType=dict(default='A', choices=['A', 'AAAA', 'PTR', 'CNAME', 'MX', 'SRV', 'TXT']),
             rData=dict(default=None, type='str'),
@@ -159,10 +246,8 @@ def main():
     state = module.params['state']
     function = module.params['function']
    
-    result = {}   
-            
-    # TODO: data validation : dnsServer, dnsZone, rName, rData
-    
+    result = {}               
+  
     # Check connection
     server = dnsServer(module)
     (rc, out, err) = server.check_connection()
