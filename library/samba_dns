@@ -4,7 +4,6 @@ ANSIBLE_METADATA = {'status': ['preview'],
                     'supported_by': 'community',
                     'version': '0.1.0'}
 
-
 DOCUMENTATION = '''
 module: samba_dns
 short_description: Manage Samba 4 DNS zones and records
@@ -106,7 +105,7 @@ class dnsCommand():
 
     def create(self, actionType, dnsServer, dnsZone=None, rName=None, rType=None, rData=None): 
         # Check that action is supported by samba-tool dns
-        if actionType.lower() not in ('add', 'delete', 'zonecreate', 'zonedelete', 'serverinfo'):
+        if actionType.lower() not in ('add', 'delete', 'zonecreate', 'zonedelete', 'serverinfo', 'query'):
             raise RuntimeError('%s option is not supported by "samba-tool dns".' % actionType)
         
         cmd = [self.module.get_bin_path('samba-tool', True)]
@@ -153,37 +152,37 @@ class dnsRecord():
     # Create a DNS record        
     def add_record(self):
         cmd = dnsCommand(self.module)
-        cmd.create('add', self.dnsServer, self.dnsZone, self.rName, \
-            self.rType, self.rData)
+        if self.rType == 'PTR':
+            cmd.create('add', self.dnsServer, self.get_ptr_zone(), self.rData.split('.')[-1], self.rType, self.rName)
+        else:
+            cmd.create('add', self.dnsServer, self.dnsZone, self.rName, self.rType, self.rData)
         return cmd.execute()
     
     # Delete a DNS record
     def delete_record(self):
         cmd = dnsCommand(self.module)
-        cmd.create('delete', self.dnsServer, self.dnsZone, self.rName, \
-            self.rType, self.rData)
+        if self.rType == 'PTR':
+            cmd.create('delete', self.dnsServer, self.get_ptr_zone(), self.rData.split('.')[-1], self.rType, self.rName)
+        else:            
+            cmd.create('delete', self.dnsServer, self.dnsZone, self.rName, self.rType, self.rData)
+        return cmd.execute(cmd)
+    
+    # Query a DNS record and check if it exists
+    def query_record(self):
+        cmd = dnsCommand(self.module)
+        if self.rType == 'PTR':
+            cmd.create('query', self.dnsServer, self.get_ptr_zone(), self.rData.split('.')[-1], self.rType)
+        else:
+            cmd.create('query', self.dnsServer, self.dnsZone, self.rName, self.rType)
         return cmd.execute(cmd)
           
-    
+    # Define the PTR zone from the ip address
     def get_ptr_zone(self):
         # Reverse the IP address and remove the first digits        
         reverse_zone = self.rData.split('.')[::-1][1:]        
         return '.'.join(reverse_zone) + '.in-addr.arpa'
     
-    # Create a PTR record        
-    def create_ptr(self):
-        cmd = dnsCommand(self.module)
-        cmd.create('add', self.dnsServer, self.get_ptr_zone(), \
-            self.rData.split('.')[-1], 'PTR', self.rName)
-        return cmd.execute()  
-  
-    # Delete a PTR record        
-    def delete_ptr(self):
-        cmd = dnsCommand(self.module)
-        cmd.create('delete', self.dnsServer, self.get_ptr_zone(), \
-            self.rData.split('.')[-1], 'PTR', self.rName)
-        return cmd.execute()   
-    
+   
 class dnsZone():
     # Create a DNS zone. Samba service needs to be restarted after zone creation
     
@@ -260,13 +259,22 @@ def main():
     if function == 'record':
         record = dnsRecord(module)
         
+        # Query record to check whether it exists or not
+        rc_q = record.query_record()[0]
+        
         if state == 'present':
-            (rc, out, err) = record.create_ptr() if record.rType == 'PTR' \
-                else record.add_record()    
+            if rc_q == 0:
+                result['changed'] = False
+                result['stdout'] = "Record already exists"
+                module.exit_json(**result)            
+            (rc, out, err) = record.add_record()    
 
         elif state == 'absent':
-            (rc, out, err) = record.delete_ptr() if record.rType == 'PTR' \
-                else record.delete_record()
+            if rc_q != 0:
+                result['changed'] = False
+                result['stdout'] = "Record does not exist"
+                module.exit_json(**result) 
+            (rc, out, err) = record.delete_record()
                 
         if rc == 0:
             result['changed'] = True
